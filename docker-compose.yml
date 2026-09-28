@@ -1,0 +1,49 @@
+# Local development stack: `docker compose up --build`, then open http://localhost:5173
+# Source folders are mounted, so backend and frontend both hot-reload on save.
+services:
+  db:
+    # Postgres with the pgvector extension (needed for RAG embeddings).
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-policy_navigator}
+    ports:
+      - "5432:5432" # exposed so DBeaver / a host-run backend can connect
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  backend:
+    build: ./backend
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-policy_navigator}
+    ports:
+      - "8000:8000" # API docs at http://localhost:8000/api/docs
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # keep the container's Linux node_modules, not the host's
+    depends_on:
+      - backend
+
+volumes:
+  db-data:
