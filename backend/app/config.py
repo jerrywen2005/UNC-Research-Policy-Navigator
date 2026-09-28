@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     environment: str = "local"
+    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/policy_navigator"
     # Only needed when the frontend is served from a different origin than the API.
     # Locally the Vite proxy and in production the nginx proxy make them same-origin.
     cors_origins: list[str] = []
