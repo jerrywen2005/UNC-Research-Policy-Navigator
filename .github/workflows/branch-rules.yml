@@ -1,0 +1,32 @@
+name: Branch rules
+
+# Enforces the promotion flow  feature/* -> dev -> qa -> main.
+# GitHub can't restrict a PR's source branch natively, so this check fails
+# on disallowed PRs; make "Branch rules / source-branch" a required check.
+on:
+  pull_request:
+    branches: [dev, qa, main]
+    types: [opened, reopened, synchronize, edited]
+
+jobs:
+  source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check source branch is allowed for this target
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          case "$BASE" in
+            main)
+              [ "$HEAD" = "qa" ] || { echo "::error::Only qa can merge into main (got '$HEAD')."; exit 1; } ;;
+            qa)
+              [ "$HEAD" = "dev" ] || { echo "::error::Only dev can merge into qa (got '$HEAD')."; exit 1; } ;;
+            dev)
+              if ! echo "$HEAD" | grep -Eq '^(feature|fix|chore|docs|refactor|test)/[a-z0-9._-]+$'; then
+                echo "::error::Branches merging into dev must be named <type>/<short-name>,"
+                echo "::error::where type is feature, fix, chore, docs, refactor or test (got '$HEAD')."
+                exit 1
+              fi ;;
+          esac
+          echo "OK: $HEAD -> $BASE"
